@@ -5,7 +5,7 @@ from openai import OpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
-load_dotenv()
+load_dotenv(override=True)
 
 client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY"),
@@ -133,24 +133,28 @@ def ask_bot(query: str) -> str:
 
     return response.choices[0].message.content
     
-
-if __name__ == "__main__":
+def init_database():
     hf = HuggingFaceEmbeddings(
         model_name = "paraphrase-multilingual-MiniLM-L12-v2"
     )
-
     db = Chroma(
         persist_directory = "./db",
         embedding_function = hf
     )
+    return db
 
+def get_unique_headers(db):
     all_headers = set()
-
     metadata_list = db.get(include=["metadatas"])["metadatas"]
-
     for meta in metadata_list:
         if "Подраздел" in meta:
             all_headers.add(meta["Подраздел"])
+
+
+if __name__ == "__main__":
+    db = init_database()
+    headers = get_unique_headers(db)
+    session_messages = []
 
     print(ask_bot("Есть ли на компах игры и нужен ли впн при использовании общественного вайфая?"))
 

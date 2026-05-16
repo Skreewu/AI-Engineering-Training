@@ -14,9 +14,11 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
-def decompose_query(query: str) -> dict:
+def decompose_query(query: str, chat_history: list[dict[str, str]]) -> dict:
     
-    system_prompt = DECOMPOSER_SYSTEM_PROMPT_TEMPLATE.format(all_headers = all_headers)
+    formatted_history = [f"{item['role']}: {item['content']}" for item in chat_history]
+
+    system_prompt = DECOMPOSER_SYSTEM_PROMPT_TEMPLATE.format(all_headers = all_headers, history=formatted_history)
 
     messages = [
         {"role": "system", "content": system_prompt}, 
@@ -57,8 +59,8 @@ def search_in_db(query: dict) -> list:
     
     return context
 
-def get_context(query: str) -> str:
-    questions = decompose_query(query=query)
+def get_context(query: str, chat_history: list[dict[str, str]]) -> str:
+    questions = decompose_query(query=query, chat_history=chat_history)
 
     if "isCorrectQuestion" not in questions:
         return "Warning"
@@ -75,24 +77,31 @@ def get_context(query: str) -> str:
     return ' '.join(context)
 
 
-def ask_bot(query: str) -> str:
-    context = get_context(query=query)
+def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
+    context = get_context(query=query, chat_history=chat_history)
 
     if context == "Warning":
         return "Не могу ответить на данный вопрос"
     
     system_prompt = ASSISTANT_SYSTEM_PROMPT_TEMPLATE.format(context=context)
-
-    messages = [{"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"<user_input>\n{query.replace('<', '').replace('>', '').replace('/', '')}\n</user_input>"}]
+    system_message = [{"role": "system", "content": system_prompt}]
     
-    # print(f"НАЙДЕННЫЙ КОНТЕКСТ: {context}")
+    chat_history.append({"role": "user", "content": f"<user_input>\n{query.replace('<', '').replace('>', '').replace('/', '')}\n</user_input>"})
+
+    if len(chat_history) > 4:
+        del chat_history[1:-4]
+    else:
+        chat_history = chat_history
+
+    messages = system_message + chat_history
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         messages=messages,
         temperature=0.1,
     )
+
+    chat_history.append({"role": "assistant", "content": response.choices[0].message.content})
 
     return response.choices[0].message.content
     
@@ -119,8 +128,20 @@ if __name__ == "__main__":
     headers = get_unique_headers(db)
 
     session_messages = []
+    
+    print("Помощник запущен. Напишите 'Stop' для выхода.\n")
+    
+    while True:
+        question = input("Вы: ")
+        if question.lower() == "stop":
+            break
+        try:
+            reply = ask_bot(query=question, chat_history=session_messages)
+            print(reply)
+        except Exception as e:
+            session_messages.pop()
+            print(f"Произошла ошибка {e}. Повторите попытку позже")
 
-    print(ask_bot("Есть ли на компах игры и нужен ли впн при использовании общественного вайфая?"))
 
 
     

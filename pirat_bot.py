@@ -3,9 +3,9 @@ import typing
 from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
+load_dotenv(override=True)
 client = OpenAI(
-        api_key = os.getenv("GROQ_API_KEY"),
+        api_key=os.getenv("GROQ_API_KEY"),
         base_url="https://api.groq.com/openai/v1"
     )
 
@@ -22,6 +22,7 @@ def ask_bot(message: str, chat_history: list[dict[str, str]]) -> typing.Generato
         model="llama-3.3-70b-versatile",
         messages=short_history,
         temperature=0.3,
+        max_completion_tokens=4096,
         stream = True
     )
 

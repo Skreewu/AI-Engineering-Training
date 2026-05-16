@@ -1,5 +1,6 @@
 import os
 import json
+import typing
 from dotenv import load_dotenv
 from openai import OpenAI
 from langchain_community.vectorstores import Chroma
@@ -13,7 +14,6 @@ client = OpenAI(
 )
 
 def decompose_query(query: str) -> dict:
-
     messages = [
         {"role": "system", "content": f"""
     <role>Ты - умный маршрутизатор запросов к HR-базе данных.</role>
@@ -144,7 +144,6 @@ def init_database():
     return db
 
 def get_unique_headers(db):
-    all_headers = set()
     metadata_list = db.get(include=["metadatas"])["metadatas"]
     for meta in metadata_list:
         if "Подраздел" in meta:
@@ -153,7 +152,9 @@ def get_unique_headers(db):
 
 if __name__ == "__main__":
     db = init_database()
+    all_headers = set()
     headers = get_unique_headers(db)
+
     session_messages = []
 
     print(ask_bot("Есть ли на компах игры и нужен ли впн при использовании общественного вайфая?"))

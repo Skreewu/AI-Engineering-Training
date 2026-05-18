@@ -1,11 +1,28 @@
 import os
 import json
 import typing
+import logging
 from dotenv import load_dotenv
 from openai import OpenAI
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from prompts import ASSISTANT_SYSTEM_PROMPT_TEMPLATE, DECOMPOSER_SYSTEM_PROMPT_TEMPLATE
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter("%(name)s %(asctime)s %(levelname)s %(message)s")
+
+handler = logging.FileHandler("rag_system.log", mode="a")
+handler.setFormatter(formatter)
+handler.setLevel(logging.DEBUG)
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+stream_handler.setLevel(logging.INFO)
+
+logger.addHandler(handler)
+logger.addHandler(stream_handler)
 
 load_dotenv(override=True)
 
@@ -81,6 +98,7 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
     context = get_context(query=query, chat_history=chat_history)
 
     if context == "Warning":
+        logging.info("Некорректный запрос: %s", query)
         return "Не могу ответить на данный вопрос"
     
     system_prompt = ASSISTANT_SYSTEM_PROMPT_TEMPLATE.format(context=context)
@@ -105,15 +123,31 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
 
     return response.choices[0].message.content
     
-def init_database():
-    hf = HuggingFaceEmbeddings(
-        model_name = "paraphrase-multilingual-MiniLM-L12-v2"
-    )
-    db = Chroma(
-        persist_directory = "./db",
-        embedding_function = hf
-    )
-    return db
+def init_database(db_path="./db", model_name="paraphrase-multilingual-MiniLM-L12-v2"):
+
+    logger.info("Запуск инициализации баз данных. Путь: '%s', Модель: '%s'", db_path, model_name)
+
+    try:
+        logger.debug("Загрузка модуля HuggingFaceEmbeddings")
+        hf = HuggingFaceEmbeddings(
+            model_name = model_name
+        )
+
+        logger.debug("Подключение к директории ChromaDB")
+        db = Chroma(
+            persist_directory = db_path,
+            embedding_function = hf
+        )
+        
+        logger.info("Векторная база данных инициализирована")
+
+        return db
+    except FileNotFoundError:
+        logger.error("Директория с базой данных не найдена по пути: %s", db_path)
+        raise
+    except Exception as e:
+        logger.critical("Ошибка при загрузке базы данных: %s", str(e), exc_info=True)
+        raise
 
 def get_unique_headers(db):
     metadata_list = db.get(include=["metadatas"])["metadatas"]
@@ -141,7 +175,3 @@ if __name__ == "__main__":
         except Exception as e:
             session_messages.pop()
             print(f"Произошла ошибка {e}. Повторите попытку позже")
-
-
-
-    

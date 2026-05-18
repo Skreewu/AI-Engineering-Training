@@ -88,8 +88,8 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
     
     chat_history.append({"role": "user", "content": f"<user_input>\n{query.replace('<', '').replace('>', '').replace('/', '')}\n</user_input>"})
 
-    if len(chat_history) > 4:
-        del chat_history[1:-4]
+    if len(chat_history) > 6:
+        del chat_history[:-6]
     else:
         chat_history = chat_history
 

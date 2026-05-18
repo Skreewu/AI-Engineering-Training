@@ -13,7 +13,7 @@ logger.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter("%(name)s %(asctime)s %(levelname)s %(message)s")
 
-handler = logging.FileHandler("rag_system.log", mode="a")
+handler = logging.FileHandler("Logs/bot_system.log", mode="a", encoding="utf-8")
 handler.setFormatter(formatter)
 handler.setLevel(logging.DEBUG)
 

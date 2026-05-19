@@ -3,7 +3,7 @@ import json
 import typing
 import logging
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, AuthenticationError, APIConnectionError
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from prompts import ASSISTANT_SYSTEM_PROMPT_TEMPLATE, DECOMPOSER_SYSTEM_PROMPT_TEMPLATE
@@ -113,11 +113,28 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
 
     messages = system_message + chat_history
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
-        temperature=0.1,
-    )
+    logger.debug("Запрос к модели...")
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            temperature=0.1,
+        )
+        logger.info("Успешный запрос к %s. Токены: [Входящие: %s / Исходящие: %s]. Статус: %s", 
+                    response.model, response.usage.prompt_tokens, response.usage.completion_tokens, response.choices[0].finish_reason)
+        
+    except AuthenticationError as e:
+        logger.critical("Доступ запрещен. Ошибка аутентификации: %s", str(e))
+        raise
+    except RateLimitError as e: 
+        logger.warning("Превышен лимит запросов к API: %s", str(e))
+        return "Подождите пару минут"
+    except APIConnectionError as e:
+        logger.error("Ошибка сети или сервер недоступен: %s", str(e))
+        return "Проблемы с подключением"
+    except Exception as e:
+        logger.critical("Неизвестная ошибка при вызове API: %s", str(e), exc_info=True)
+        raise
 
     chat_history.append({"role": "assistant", "content": response.choices[0].message.content})
 

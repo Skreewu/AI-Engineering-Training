@@ -51,6 +51,8 @@ def decompose_query(query: str, chat_history: list[dict[str, str]]) -> dict:
 
     parsed_data = json.loads(response.choices[0].message.content)
 
+    logger.info("Запрос: '%s'. Разбит на %i подзапроса/ов", query, len(parsed_data['queries']))
+
     return parsed_data
 
 def search_in_db(query: dict) -> list:
@@ -59,6 +61,8 @@ def search_in_db(query: dict) -> list:
     search_query = query["question"]
     search_category = query["category"]
     
+    logger.info("Поиск в базе данных в категории: '%s'. Подзапрос: '%s'", search_category, search_query)
+
     if search_category:
         search_result = db.similarity_search(
                 query = search_query, 
@@ -73,7 +77,7 @@ def search_in_db(query: dict) -> list:
         
     for doc in search_result:
         context.append(doc.page_content)
-    
+
     return context
 
 def get_context(query: str, chat_history: list[dict[str, str]]) -> str:
@@ -90,6 +94,8 @@ def get_context(query: str, chat_history: list[dict[str, str]]) -> str:
     for question in questions['queries']:
         results = search_in_db(query=question) 
         context.update(results) 
+
+    logger.info("Успешный поиск. Найдено чанков %i. Общий размер извлеченного контекста: %i", len(context), len(' '.join(context)))
 
     return ' '.join(context)
 

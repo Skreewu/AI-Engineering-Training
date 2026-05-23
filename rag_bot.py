@@ -7,6 +7,7 @@ from openai import OpenAI, RateLimitError, AuthenticationError, APIConnectionErr
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 from prompts import ASSISTANT_SYSTEM_PROMPT_TEMPLATE, DECOMPOSER_SYSTEM_PROMPT_TEMPLATE
+import Tools.tools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -99,7 +100,6 @@ def get_context(query: str, chat_history: list[dict[str, str]]) -> str:
 
     return ' '.join(context)
 
-
 def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
     context = get_context(query=query, chat_history=chat_history)
 
@@ -125,6 +125,7 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
             model="llama-3.3-70b-versatile",
             messages=messages,
             temperature=0.1,
+            tools= [Tools.tools.GET_TICKET_STATUS_SCHEMA]
         )
         logger.info("Успешный запрос к %s. Токены: [Входящие: %s / Исходящие: %s]. Статус: %s", 
                     response.model, response.usage.prompt_tokens, response.usage.completion_tokens, response.choices[0].finish_reason)

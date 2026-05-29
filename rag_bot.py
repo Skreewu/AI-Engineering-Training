@@ -100,6 +100,53 @@ def get_context(query: str, chat_history: list[dict[str, str]]) -> str:
 
     return ' '.join(context)
 
+def generate_llm_response(chat_history: list[dict[str, str]], isToolAvailable) -> str:
+    logger.debug("Запрос к модели...")
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=chat_history,
+            temperature=0.1,
+            tool_choice=isToolAvailable,
+            tools= [Tools.tools.GET_TICKET_STATUS_SCHEMA]
+        )
+        logger.info("Успешный запрос к %s. Токены: [Входящие: %s / Исходящие: %s]. Статус: %s", 
+                    response.model, response.usage.prompt_tokens, response.usage.completion_tokens, response.choices[0].finish_reason)
+        
+    except AuthenticationError as e:
+        logger.critical("Доступ запрещен. Ошибка аутентификации: %s", str(e))
+        raise
+    except RateLimitError as e: 
+        logger.warning("Превышен лимит запросов к API: %s", str(e))
+        return "Подождите пару минут"
+    except APIConnectionError as e:
+        logger.error("Ошибка сети или сервер недоступен: %s", str(e))
+        return "Проблемы с подключением"
+    except Exception as e:
+        logger.critical("Неизвестная ошибка при вызове API: %s", str(e), exc_info=True)
+        raise
+    
+    if response.choices[0].message.tool_calls:
+        logger.info("Инициирован вызов инструментов...")
+        chat_history.append(response.choices[0].message.model_dump(exclude_unset=True))
+
+        for tool in response.choices[0].message.tool_calls:
+            tool_data = json.loads(tool.function.arguments)
+
+            match tool.function.name:
+                case "get_ticket_status":
+                    tool_content = Tools.tools.get_ticket_status(tool_data["ticket_id"])
+                    tool_id = tool.id
+            logger.debug(f"Вызван инструмент {tool.function.name}. ID вызова: {tool_id}")
+
+            chat_history.append({"role": "tool", "tool_call_id": tool_id, "content": tool_content})
+
+        response = generate_llm_response(chat_history=chat_history, isToolAvailable="none")
+    else:
+        chat_history.append({"role": "assistant", "content": response.choices[0].message.content})
+
+    return response
+
 def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
     context = get_context(query=query, chat_history=chat_history)
 
@@ -119,31 +166,7 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
 
     messages = system_message + chat_history
 
-    logger.debug("Запрос к модели...")
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.1,
-            tools= [Tools.tools.GET_TICKET_STATUS_SCHEMA]
-        )
-        logger.info("Успешный запрос к %s. Токены: [Входящие: %s / Исходящие: %s]. Статус: %s", 
-                    response.model, response.usage.prompt_tokens, response.usage.completion_tokens, response.choices[0].finish_reason)
-        
-    except AuthenticationError as e:
-        logger.critical("Доступ запрещен. Ошибка аутентификации: %s", str(e))
-        raise
-    except RateLimitError as e: 
-        logger.warning("Превышен лимит запросов к API: %s", str(e))
-        return "Подождите пару минут"
-    except APIConnectionError as e:
-        logger.error("Ошибка сети или сервер недоступен: %s", str(e))
-        return "Проблемы с подключением"
-    except Exception as e:
-        logger.critical("Неизвестная ошибка при вызове API: %s", str(e), exc_info=True)
-        raise
-
-    chat_history.append({"role": "assistant", "content": response.choices[0].message.content})
+    response = generate_llm_response(chat_history=messages, isToolAvailable="auto")
 
     return response.choices[0].message.content
     

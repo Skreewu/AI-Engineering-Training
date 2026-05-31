@@ -142,8 +142,6 @@ def generate_llm_response(chat_history: list[dict[str, str]], isToolAvailable) -
             chat_history.append({"role": "tool", "tool_call_id": tool_id, "content": tool_content})
 
         response = generate_llm_response(chat_history=chat_history, isToolAvailable="none")
-    else:
-        chat_history.append({"role": "assistant", "content": response.choices[0].message.content})
 
     return response
 
@@ -159,6 +157,8 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
     
     chat_history.append({"role": "user", "content": f"<user_input>\n{query.replace('<', '').replace('>', '').replace('/', '')}\n</user_input>"})
 
+    logger.debug(f"Запрос: {query}")
+
     if len(chat_history) > 6:
         del chat_history[:-6]
     else:
@@ -167,6 +167,8 @@ def ask_bot(query: str, chat_history: list[dict[str, str]]) -> str:
     messages = system_message + chat_history
 
     response = generate_llm_response(chat_history=messages, isToolAvailable="auto")
+
+    chat_history.append({"role": "assistant", "content": response.choices[0].message.content})
 
     return response.choices[0].message.content
     
